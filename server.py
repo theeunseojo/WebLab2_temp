@@ -72,6 +72,14 @@ def signin():
     return jsonify({'success': False, 'message': "Wrong username or password."})
 
 
+def check(email):
+        pat = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,7}\b'
+        if email is None : return False
+        if re.match(pat,email): 
+            return True
+        else:
+            return False
+               
 
 @app.route('/sign_up', methods=['POST'])
 def signup():
@@ -114,13 +122,7 @@ def signup():
     else:
         return jsonify({'success': False, 'message': "Failed to create a new user."})
 
-def check(email):
-        pat = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,7}\b'
-        if re.match(pat,email): 
-            return True
-        else:
-            return False
-               
+
 
 @app.route('/sign_out', methods=['POST'])
 def signout():
@@ -136,33 +138,46 @@ def signout():
 
 @app.route('/get_user_data_by_token', methods=['GET'])
 def getUserDataByToken():
-    data = request.get_json()
-    token = data['token']
-    loggedIn = database_handler.checkTokenExist(token)
-    if loggedIn:
-        email = database_handler.tokenToEmail(token)
-        user_data = database_handler.getUserDataByEmail(email)
-        if user_data is not None:
-            user_data['token'] = token
-            return jsonify({'success': True, 'message': "User data retrieved.", 'data': user_data})
-        return jsonify({'success': False,'message': "No such user."})
-    return jsonify({'success': False, 'message': "You are not signed in."})
+    header = request.headers.get('Authorization')
+    if header is None : 
+        return jsonify({'success': False, 'message': "Token hedaer is not vaild"})
+        
+
+    else :
+        token = request.headers['Authorization'].replace('Bearer','')
+        #logged_in_user = database_handler.getloggedinUserDataByToken(token)
+        loggedIn = database_handler.checkTokenExist(token)
+        if loggedIn:
+            email = database_handler.tokenToEmail(token)
+            user_data = database_handler.getUserDataByEmail(email)
+            if user_data is not None:
+                user_data['token'] = token
+                return jsonify({'success': True, 'message': "User data retrieved.", 'data': user_data})
+            return jsonify({'success': False,'message': "No such user."})
+        return jsonify({'success': False, 'message': "You are not signed in."})
 
 @app.route('/get_user_data_by_email', methods=['GET'])
-def getUserDataByEmail():
+def get_user_data_by_email():
+    header = request.headers.get('Authorization')
+    print(header)
     data = request.get_json()
+    print(data)
     email = data['email']
     token = data['token']
-    
+        
     # check this user logged in
     loggedIn = database_handler.checkTokenExist(token)
     if loggedIn:
         # get user data
         user_data = database_handler.getUserDataByEmail(email)
         if user_data is not None:
-            return jsonify({'success': True, 'message': "User data retrieved.", 'data': user_data})
+                return jsonify({'success': True, 'message': "User data retrieved.", 'data': user_data})
         return jsonify({'success': False, 'message': "No such user."})
     return jsonify({'success': False, 'message': "You are not signed in."})
+            
+
+
+
         
 @app.route('/get_user_messages_by_token', methods=['POST'])
 def getUserMessagesByToken():
@@ -228,32 +243,34 @@ def postMessage():
 def changePassword():
     token = request.headers['Authorization'].replace('Bearer','')
     logged_in_user = database_handler.getloggedinUserDataByToken(token)
-
+    
 
     if logged_in_user is not None:
         data = request.get_json()
         oldPassword = data['oldpassword']
         newPassword = data['newpassword']
+        # validate the format
+        if len(oldPassword) < 7 or newPassword is None :
+            return jsonify({'success': False, 'message': "The password is at least 7 characters. or token is not correct."})
     
-    # validate the format
-    if len(oldPassword) < 7 or newPassword is None :
-        return jsonify({'success': False, 'message': "The password is at least 7 characters. or token is not correct."})
-    
-    else:
-        # pass the validation
-        # check the token exists
-        token_exist = database_handler.checkTokenExist(token)
-        if token_exist:
-            email = database_handler.tokenToEmail(token)
-            user_data = database_handler.getUserDataByEmail(email)
-            # check the old pw is correct
-            #print(email,user_data)
-            if user_data['password'] == oldPassword:
-                # change password by database
-                database_handler.changePassword(email, newPassword)
-                return jsonify({'success': True, 'message': "Password changed."})
-            return jsonify({ "success": False, "message": "Wrong password."})
-        return jsonify({ "success": False, "message": "You are not logged in."})
+        else:
+            # pass the validation
+            # check the token exists
+            token_exist = database_handler.checkTokenExist(token)
+            if token_exist:
+                email = database_handler.tokenToEmail(token)
+                user_data = database_handler.getUserDataByEmail(email)
+                # check the old pw is correct
+                #print(email,user_data)
+                if user_data['password'] == oldPassword:
+                    # change password by database
+                    database_handler.changePassword(email, newPassword)
+                    return jsonify({'success': True, 'message': "Password changed."})
+                return jsonify({ "success": False, "message": "Wrong password."})
+            return jsonify({ "success": False, "message": "You are not logged in."})
+    else : return jsonify({ "success": False, "message": "You are not logged in."})
+        
+
 
 if __name__ == '__main__':
     app.run()
