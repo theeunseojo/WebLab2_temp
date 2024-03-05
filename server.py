@@ -124,17 +124,24 @@ def signup():
 
 
 
-@app.route('/sign_out', methods=['POST'])
-def signout():
-    data = request.get_json()
-    token = data['token']
-    
-    # check this user logged in
-    loggedIn = database_handler.checkTokenExist(token)
-    if loggedIn:
-        result = database_handler.deleteLoggedinUserByToken(token)
-        return jsonify({'success': True, 'message': "Successfully signed out."})
-    return jsonify({'success': False, 'message': "You are not signed in."})
+@app.route('/sign_out', methods=['DELETE'])
+def sign_out():
+    token = request.headers.get('Authorization')
+    user = database_handler.getloggedinUserDataByToken(token)
+
+    if user is not None:
+        database_handler.deleteLoggedinUserByToken(token)
+        return jsonify(
+            success=True,
+            message='Successfully signed out.'
+        )
+    else:
+        return jsonify(
+            success=False,
+            message='You are not signed in.'
+        )
+
+
 
 @app.route('/get_user_data_by_token', methods=['GET'])
 def getUserDataByToken():
@@ -156,15 +163,10 @@ def getUserDataByToken():
             return jsonify({'success': False,'message': "No such user."})
         return jsonify({'success': False, 'message': "You are not signed in."})
 
-@app.route('/get_user_data_by_email', methods=['GET'])
-def get_user_data_by_email():
-    header = request.headers.get('Authorization')
-    print(header)
-    data = request.get_json()
-    print(data)
-    email = data['email']
-    token = data['token']
-        
+@app.route('/get_user_data_by_email/<email>', methods=['GET'])
+def get_user_data_by_email(email):
+    token = request.headers.get('Authorization')
+
     # check this user logged in
     loggedIn = database_handler.checkTokenExist(token)
     if loggedIn:
@@ -174,50 +176,54 @@ def get_user_data_by_email():
                 return jsonify({'success': True, 'message': "User data retrieved.", 'data': user_data})
         return jsonify({'success': False, 'message': "No such user."})
     return jsonify({'success': False, 'message': "You are not signed in."})
-            
-
-
 
         
-@app.route('/get_user_messages_by_token', methods=['POST'])
+@app.route('/get_user_messages_by_token', methods=['GET'])
 def getUserMessagesByToken():
-    data = request.get_json()
-    token = data['token']
-    
-    # check this user logged in
-    loggedIn = database_handler.checkTokenExist(token)
-    if loggedIn:
-        # email = database_handler.tokenToEmail(token)
-        user_data = database_handler.getUserMessagesByToken(token)
-        if user_data is not None:
-            return jsonify({'success': True, 'message': "User messages retrieved.", 'data': user_data['messages']})
-        return jsonify({'success': False,'message': "No such user."})
+    token = request.headers.get('Authorization')
+    logged_in_user = database_handler.getloggedinUserDataByToken(token)
+
+    if logged_in_user is not None:
+        messages = database_handler.getUserMessagesByToken(token)
+
+        return jsonify(
+            success=True,
+            message='User messages retrieved.',
+            data=messages
+        )
     else:
-        return jsonify({'success': False, 'message': "You are not signed in."})
+        return jsonify(
+            success=False,
+            message='You are not signed in.'
+        )
+
         
-@app.route('/get_user_messages_by_email', methods=['POST'])
-def getUserMessagesByEmail():
-    data = request.get_json()
-    token = data['token']
-    email = data['email']
-    
+@app.route('/get_user_messages_by_email/<email>', methods=['GET'])
+def get_user_messages_by_email(email):
+  
+    token = request.headers.get('Authorization')
     # check this user logged in
     loggedIn = database_handler.checkTokenExist(token)
+    print("loggedIn is",loggedIn)
     if loggedIn:
+        # get user data
+        email = database_handler.tokenToEmail(token)
         user_data = database_handler.getUserMessagesByEmail(email)
-        print(user_data)
         if user_data is not None:
-            return jsonify({'success': True, 'message': "User messages retrieved.", 'data': user_data['messages']})
-        return jsonify({'success': False,'message': "No such user."})
-    else:
-        return jsonify({'success': False, 'message': "You are not signed in."})
+                return jsonify({'success': True, 'message': "User data retrieved.", 'data': user_data})
+        return jsonify({'success': False, 'message': "No such user."})
+    return jsonify({'success': False, 'message': "You are not signed in."})
+
 
 @app.route('/post_message', methods=['POST'])
 def postMessage():
     data = request.get_json()
-    token = data['token']
-    toEmail = data['toEmail']
-    content = data['content']
+    token = request.headers.get('Authorization')
+    if token is None:
+        return jsonify({'success': False,'message': "Token is not vaild."})
+    # {'message': 'Hello, world! 903', 'email': 'MainUser76599028@example.com'}
+    toEmail = data['email']
+    content = data['message']
     
     fromEmail = database_handler.tokenToEmail(token)
     if fromEmail is not None:
